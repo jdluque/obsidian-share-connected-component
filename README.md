@@ -8,4 +8,7 @@ This hacky code snippet will take obsidian notes and create a new vault containi
 ```
 python3 main.py "my thoughts.md" "recipes.md"
 ```
-4. Done! There should be a new vault titled `my_new_vault_dir` in the same directory as the original vault.
+1. Done! There should be a new vault titled `my_new_vault_dir` in the same directory as the original vault.
+
+### Future plans
+Someday maybe this can become an integrated Obsidian plugin. If there is enough demand someday could come sooner.
