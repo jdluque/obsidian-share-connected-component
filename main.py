@@ -19,6 +19,8 @@ def get_connected_components(seeds):
     stack = seeds
     while stack:
         fn = stack.pop()
+        if fn in seen:
+            continue
         outgoing_links = get_links(fn)
         seen.add(fn)
         seen.update(outgoing_links)
