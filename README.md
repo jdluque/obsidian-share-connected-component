@@ -5,9 +5,9 @@ This hacky code snippet will take obsidian notes and create a new vault containi
 1. Copy `main.py` to the root of your vault.
 2. Open the vault in your terminal.
 3. To share the two notes `my thoughts.md` and `recipes.md` run 
-```
-python3 main.py "my thoughts.md" "recipes.md"
-```
+    ```
+    python3 main.py "my thoughts.md" "recipes.md"
+    ```
 1. Done! There should be a new vault titled `my_new_vault_dir` in the same directory as the original vault.
 
 ### Future plans
