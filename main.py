@@ -5,16 +5,16 @@ import shutil
 
 
 VAULT_DIR = '../my_new_vault_dir'
+notes_map = {}  # this dict maps note names to their respective path,
 
-# this dict maps note names to their respective path, 
-notes_map = {}
+
 def populate_notes_map():
     for root, dirs, files in os.walk('.'):
         for name in files:
             notes_map[name] = os.path.join(root, name)
 
+
 def get_connected_components(seeds):
-    populate_notes_map()
     seen = set()
     stack = seeds
     while stack:
@@ -51,6 +51,7 @@ def make_new_vault(target_notes):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    populate_notes_map()
     target_notes = get_connected_components(sys.argv[1:])
     print(f'Copying new notes: {target_notes}')
     print(f'Making new vault at: {VAULT_DIR}/')
