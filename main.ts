@@ -1,4 +1,7 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { fstat, read } from 'fs';
+import { getLinkpath, App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, SearchComponent, Setting, TFile } from 'obsidian';
+import fs from 'fs';
+import path from 'path';
 
 // Remember to rename these classes and interfaces!
 
@@ -7,18 +10,102 @@ interface ShareConnectedComponentsSettings {
      * Relevant settings include:
      * - include attachments
      * - new vault path
+	 * - Default for clobbering files
+	 * - Path to keep backup vault in case something goes wrong
      */
 	mySetting: string;
     includeAttachments: boolean;
+	newVaultDir: string;
 }
 
 const DEFAULT_SETTINGS: ShareConnectedComponentsSettings = {
 	mySetting: 'default',
-    includeAttachments: false
+    includeAttachments: false,
+	newVaultDir: '../new-vault/'
 }
 
 export default class ShareConnectedComponent extends Plugin {
 	settings: ShareConnectedComponentsSettings;
+	notesMap: Map<string, TFile>;
+
+	async populateNotesMap() : Promise<void> {
+		console.log('in pNM');
+		this.notesMap = new Map<string, TFile> ();
+		let files = this.app.vault.getFiles();
+		for (let file of files) {
+			this.notesMap.set(file.basename, file);
+		}
+		// Test code below
+		console.log("Show notesmap");
+		console.log(this.notesMap);
+		let links : string[] = await this.getLinks('internships');
+		console.log(links);
+		// let cncs = await this.getConnectedComponents(['internships', 'opportunities']);
+		let cncs = await this.getConnectedComponents(['opportunities']);
+		console.log('cncs\n'); 
+		console.log(cncs);
+	}
+
+	/**
+	 * @param seeds seed note names
+	 * @returns note names for all the reachable notes
+	 */
+	async getConnectedComponents(seeds: string[]) : Promise<string[]> {
+		let seen = new Set<string> ();
+		console.log(seeds);
+		// seeds = ["internships"]
+		let stack: string[] = seeds;
+		// console.log(stack);
+		while (stack.length) {
+			let currNote = stack.pop();
+			console.log(currNote);
+			if (seen.has(currNote)) {
+				console.log('already seen');
+				continue;
+			}
+			let outgoingLinks = await this.getLinks(currNote);
+			seen.add(currNote);
+			outgoingLinks.forEach((origLink) => { stack.push(origLink) });
+		}
+		return Array.from(seen.values());
+	}
+
+	/**
+	 * Get the outgoing links of a note
+	 * @param noteName Name of note, without extension or base path.
+	 * @returns note names of the outgoing links. 
+	 */
+	async getLinks(noteName: string) : Promise<string[]> {
+		// Check for dangling links
+		if (!this.notesMap.has(noteName))  {
+			return [];
+		}
+		const regex = /\[\[([^\[\|\#]+)\|?\#?[^\[\|]*\]\]/g;
+		console.log(noteName);
+		const readPromise = this.app.vault.read(this.notesMap.get(noteName));
+		let fileContent: string = await readPromise;
+		// console.log(fileContent);
+		let links: string[] = [];
+		for (let match of fileContent.matchAll(regex)) {
+			links.push(match[1]);
+		}
+		// console.log(links);
+		return links;
+	}
+
+	makeNewVault(targetNotes: string[]) : void {
+		// this.populateNotesMap(process.cwd(), []);
+		// let seeds: string[];
+		// targetNotes = this.getConnectedComponents(seeds);
+		// console.log(targetNotes);
+		// for (let note of targetNotes) {
+		// 	let source = this.notesMap[note];
+		// 	let destination = path.join('..', this.settings.newVaultDir, note);
+		// 	fs.copyFile(source, destination, (err) =>{
+		// 		console.log(`failed to copy ${note}`);
+		// 	});
+		// }
+	}
 
 	async onload() {
 		await this.loadSettings();
@@ -49,7 +136,9 @@ export default class ShareConnectedComponent extends Plugin {
 			name: 'Sample editor command',
 			editorCallback: (editor: Editor, view: MarkdownView) => {
 				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
+				// editor.replaceSelection('Sample Editor Command');
+				console.log('Hello plugin world!');
+				this.populateNotesMap();
 			}
 		});
 		// This adds a complex command that can check whether the current state of the app allows execution of the command
@@ -130,14 +219,24 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.createEl('h2', {text: 'Settings for my awesome plugin.'});
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('New vault directory')
+			.setDesc('Path for vault with copied notes')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('../new_vault/')
+				.setValue(this.plugin.settings.newVaultDir)
 				.onChange(async (value) => {
-					console.log('Secret: ' + value);
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.newVaultDir = value;
+					console.log('New vault dir: ' + value);
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Include attachments')
+			.addToggle( toggle => toggle
+				.setValue(this.plugin.settings.includeAttachments)
+				.onChange(async (value) => {
+					this.plugin.settings.includeAttachments = value;
+					console.log('toggled setting, now' + this.plugin.settings.includeAttachments.toString());
 					await this.plugin.saveSettings();
 				}));
 	}
