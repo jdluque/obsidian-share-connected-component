@@ -1,5 +1,4 @@
-import { fstat, read } from 'fs';
-import { getLinkpath, App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, SearchComponent, Setting, TFile } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
 import fs from 'fs';
 import path from 'path';
 
@@ -44,6 +43,7 @@ export default class ShareConnectedComponent extends Plugin {
 		let cncs = await this.getConnectedComponents(['opportunities']);
 		console.log('cncs\n'); 
 		console.log(cncs);
+		this.makeNewVault(cncs);
 	}
 
 	/**
@@ -64,6 +64,7 @@ export default class ShareConnectedComponent extends Plugin {
 				continue;
 			}
 			let outgoingLinks = await this.getLinks(currNote);
+			// TODO: Bug here because dangling note can be added to seen. This is still handled as an exception below but we could prune everything here
 			seen.add(currNote);
 			outgoingLinks.forEach((origLink) => { stack.push(origLink) });
 		}
@@ -77,34 +78,37 @@ export default class ShareConnectedComponent extends Plugin {
 	 */
 	async getLinks(noteName: string) : Promise<string[]> {
 		// Check for dangling links
-		if (!this.notesMap.has(noteName))  {
+		if (!this.notesMap.has(noteName)) {
 			return [];
 		}
 		const regex = /\[\[([^\[\|\#]+)\|?\#?[^\[\|]*\]\]/g;
 		console.log(noteName);
 		const readPromise = this.app.vault.read(this.notesMap.get(noteName));
 		let fileContent: string = await readPromise;
-		// console.log(fileContent);
 		let links: string[] = [];
 		for (let match of fileContent.matchAll(regex)) {
 			links.push(match[1]);
 		}
-		// console.log(links);
 		return links;
 	}
 
+	/**
+	 * Create the new vault with copied notes.
+	 * @param targetNotes note names of notes to copy
+	 */
 	makeNewVault(targetNotes: string[]) : void {
-		// this.populateNotesMap(process.cwd(), []);
-		// let seeds: string[];
-		// targetNotes = this.getConnectedComponents(seeds);
-		// console.log(targetNotes);
-		// for (let note of targetNotes) {
-		// 	let source = this.notesMap[note];
-		// 	let destination = path.join('..', this.settings.newVaultDir, note);
-		// 	fs.copyFile(source, destination, (err) =>{
-		// 		console.log(`failed to copy ${note}`);
-		// 	});
-		// }
+		// TODO: Use this.app.vault.adapter or just this.app.vault.copy/move/createFolder
+		let newVaultDir = this.settings.newVaultDir;
+		this.app.vault.createFolder(newVaultDir)
+			.finally( () => {
+				for (let noteName of targetNotes) {
+					let note = this.notesMap.get(noteName);
+					let copyDest = path.join(newVaultDir, note.path);
+					this.app.vault.copy(note, copyDest)
+						.catch(e => { console.log(e) });
+				}
+			})
+			.catch(e => { console.log(e) })
 	}
 
 	async onload() {
